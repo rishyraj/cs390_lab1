@@ -30,8 +30,45 @@ ALGORITHM = "custom_net"
 
 
 
-
 class NeuralNetwork_2Layer():
+    def __init__(self, inputSize, outputSize, neuronsPerLayer, learningRate = 0.1):
+        self.inputSize = inputSize
+        self.outputSize = outputSize
+        self.neuronsPerLayer = neuronsPerLayer
+        self.lr = learningRate
+        self.W1 = np.random.randn(self.inputSize, self.neuronsPerLayer)
+        self.W2 = np.random.randn(self.neuronsPerLayer, self.outputSize)
+
+    # Activation function.
+    def __sigmoid(self, x):
+        pass   #TODO: implement
+
+    # Activation prime function.
+    def __sigmoidDerivative(self, x):
+        pass   #TODO: implement
+
+    # Batch generator for mini-batches. Not randomized.
+    def __batchGenerator(self, l, n):
+        for i in range(0, len(l), n):
+            yield l[i : i + n]
+
+    # Training with backpropagation.
+    def train(self, xVals, yVals, epochs = 100000, minibatches = True, mbs = 100):
+        pass                                   #TODO: Implement backprop. allow minibatches. mbs should specify the size of each minibatch.
+
+    # Forward pass.
+    def __forward(self, input):
+        layer1 = self.__sigmoid(np.dot(input, self.W1))
+        layer2 = self.__sigmoid(np.dot(layer1, self.W2))
+        return layer1, layer2
+
+    # Predict.
+    def predict(self, xVals):
+        _, layer2 = self.__forward(xVals)
+        return layer2
+
+
+class NeuralNetwork_NLayer():
     def __init__(self, inputSize, outputSize, neuronsPerLayer, learningRate = 0.1):
         self.inputSize = inputSize
         self.outputSize = outputSize
@@ -67,8 +104,12 @@ class NeuralNetwork_2Layer():
             random.shuffle(zipped)
             xVals, yVals = zip(*zipped)    
     
-        batches_x = self.__batch_generator(xVals,mbs)
-        batches_y = self.__batch_generator(yVals,mbs)
+        # batches_x = self.__batch_generator(xVals,mbs)
+        # batches_y = self.__batch_generator(yVals,mbs)
+        split_to_batches = lambda A, n=mbs: [A[i:i+n] for i in range(0, len(A), n)]
+        batches_x = split_to_batches(xVals)
+        batches_y = split_to_batches(yVals)
+        # print(len(list(batches_x)))
 
         # swch = True
 
@@ -81,30 +122,22 @@ class NeuralNetwork_2Layer():
                     if flatten:
                         x = x.flatten()
                         y = y.flatten()
-                    # print(x.shape,y.shape)
                     layer1, layer2 = self.__forward(x)
                     layers = [layer1,layer2]
-                    # if swch:
-                    #     print(x)
-                    #     swch = False
                     deltas = self.__back(x,layers,[self.W1,self.W2],y)
-                    # print(np.array(deltas))
                     if (len(averaged_deltas) == 0):
                         averaged_deltas = np.array(deltas)
-                        # print(averaged_deltas[0].shape)
                     else:
                         averaged_deltas += np.array(deltas)
                 averaged_deltas /= mbs
                 self.W1 -= self.lr * averaged_deltas[1]
-                # print(averaged_deltas[0].shape,self.W2.shape)
                 self.W2 -= self.lr * averaged_deltas[0].reshape((self.neuronsPerLayer,self.outputSize))
                 
                 batch_ctr+=1
-                # load_ctr = (batch_ctr)
-                printout = "batch "+str(batch_ctr)+"/"+str(mbs)
-                # printout+="="*(batch_ctr)
+                printout = "batch "+str(batch_ctr)+"/"+str(len(batches_x))
                 print(printout, end='\r')
-        return
+            print()
+        # return
     # Forward pass.
     def __forward(self, input):
         layer1 = self.__sigmoid(np.dot(input, self.W1))
@@ -197,8 +230,8 @@ def trainModel(data):
         print("Building and training Custom_NN.")
         # xTrain = xTrain.flatten()
         # yTrain = yTrain.flatten()
-        custom_nn = NeuralNetwork_2Layer(784, 10, 40, learningRate = 0.1)
-        custom_nn.train(xTrain,yTrain,epochs=10,mbs=1000)
+        custom_nn = NeuralNetwork_2Layer(784, 10, 512, learningRate = 0.01)
+        custom_nn.train(xTrain,yTrain,epochs=10,mbs=500)
         print("Trained")                   #TODO: Write code to build and train your custon neural net.
         return custom_nn
     elif ALGORITHM == "tf_net":
