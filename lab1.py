@@ -36,16 +36,19 @@ class NeuralNetwork_2Layer():
         self.outputSize = outputSize
         self.neuronsPerLayer = neuronsPerLayer
         self.lr = learningRate
-        self.W1 = np.random.randn(self.inputSize, self.neuronsPerLayer)
-        self.W2 = np.random.randn(self.neuronsPerLayer, self.outputSize)
+        # self.W1 = np.random.randn(self.inputSize, self.neuronsPerLayer)
+        # self.W2 = np.random.randn(self.neuronsPerLayer, self.outputSize)
+        self.NN = NeuralNetwork_NLayer(self.inputSize,self.outputSize,[self.neuronsPerLayer],self.lr)
+
+
 
     # Activation function.
     def __sigmoid(self, x):
-        pass   #TODO: implement
+        return self.NN.__sigmoid(x)
 
     # Activation prime function.
     def __sigmoidDerivative(self, x):
-        pass   #TODO: implement
+        return self.NN.__sigmoidDerivative(x)
 
     # Batch generator for mini-batches. Not randomized.
     def __batchGenerator(self, l, n):
@@ -54,29 +57,41 @@ class NeuralNetwork_2Layer():
 
     # Training with backpropagation.
     def train(self, xVals, yVals, epochs = 100000, minibatches = True, mbs = 100):
-        pass                                   #TODO: Implement backprop. allow minibatches. mbs should specify the size of each minibatch.
+        self.NN.train(xVals,yVals,epochs,minibatches,mbs,flatten=True,shuffle=True)
 
     # Forward pass.
     def __forward(self, input):
-        layer1 = self.__sigmoid(np.dot(input, self.W1))
-        layer2 = self.__sigmoid(np.dot(layer1, self.W2))
-        return layer1, layer2
+        # layer1 = self.__sigmoid(np.dot(input, self.W1))
+        # layer2 = self.__sigmoid(np.dot(layer1, self.W2))
+        # return layer1, layer2
+        return
 
     # Predict.
     def predict(self, xVals):
-        _, layer2 = self.__forward(xVals)
-        return layer2
+        return self.NN.predict(xVals)
 
 
 class NeuralNetwork_NLayer():
-    def __init__(self, inputSize, outputSize, neuronsPerLayer, learningRate = 0.1):
+    def __init__(self, inputSize, outputSize,hiddenLayerNeurons,learningRate = 0.1):
         self.inputSize = inputSize
         self.outputSize = outputSize
-        self.nLayers = 2
-        self.neuronsPerLayer = neuronsPerLayer
+        self.nLayers = len(hiddenLayerNeurons) + 1
         self.lr = learningRate
-        self.W1 = np.random.randn(self.inputSize, self.neuronsPerLayer)
-        self.W2 = np.random.randn(self.neuronsPerLayer, self.outputSize)
+        self.weights = []
+        self.biases = []
+        for i,num in enumerate(hiddenLayerNeurons):
+            if (i == 0):
+                self.weights.append(np.random.randn(self.inputSize, num) / sqrt(num))
+            else:
+                self.weights.append(np.random.randn(hiddenLayerNeurons[i-1], num) / sqrt(num))
+
+            self.biases.append(np.random.randn(num) / sqrt(num))
+
+        self.weights.append(np.random.randn(hiddenLayerNeurons[len(hiddenLayerNeurons) - 1], self.outputSize) / sqrt(self.outputSize))
+        self.biases.append(np.random.randn(self.outputSize) / sqrt(self.outputSize))
+
+        self.weights = np.array(self.weights)
+        self.biases = np.array(self.biases)
 
     # Activation function.
     def __sigmoid(self, x):
