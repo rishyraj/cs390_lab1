@@ -2,10 +2,11 @@ import os
 import numpy as np
 import tensorflow as tf
 import random
+import sys
 
 from tensorflow import keras
 from tensorflow.keras.utils import to_categorical
-from math import e, floor
+from math import e, floor, sqrt
 from statistics import mean
 
 # Setting random seeds to keep everything deterministic.
@@ -92,17 +93,45 @@ class NeuralNetwork_NLayer():
 
         self.weights = np.array(self.weights)
         self.biases = np.array(self.biases)
+        # for bias in self.biases:
+        #     print(bias)
+
+    def progress_bar(self,progress,goal,subdivisions=32):
+        modulo_factor = goal / subdivisions
+        # if (goal % subdivisions != 0):
+            # subdivisions += 1
+        
+        bar_graphic = "█"
+        p_bar = "|"
+        # if (progress % modulo_factor == 0):
+        bars = int(progress/modulo_factor)
+        spaces = subdivisions - bars
+        for i in range(subdivisions):
+            if (i < bars and bars != 0):
+                p_bar+=bar_graphic
+            else:
+                p_bar+=" "
+        
+        if (goal % subdivisions != 0):
+            if (progress != goal):
+                p_bar += " "
+            else:
+                p_bar += bar_graphic
+
+        p_bar += "|"
+        return p_bar
 
     # Activation function.
     def __sigmoid(self, x):
         return (e**x)/(e**x + 1)
 
     # Activation prime function.
-    def __sigmoid_derivative(self, x,sig_calc):
+    def __sigmoid_derivative(self, x,sig_calc=True):
         return self.__sigmoid(x)*(1 - self.__sigmoid(x)) if not sig_calc else x * (1-x)
 
     def __mse(self,y,yhat):
-        return mean([0.5 * (y-yhat)**2 for y,yhat in zip(y,yhat)])
+        # return mean([0.5 * (y-yhat)**2 for y,yhat in zip(y,yhat)])
+        return np.mean(np.square(y-yhat))
 
     def __mse_derivative(self,y,yhat):
         return -1 * (y - yhat)
@@ -113,88 +142,133 @@ class NeuralNetwork_NLayer():
             yield l[i : i + n]
 
     # Training with backpropagation.
-    def train(self, xVals, yVals, epochs = 100000, minibatches = True, mbs = 100,flatten=True,shuffle=True):
+    def train(self, xVals, yVals, epochs = 100000, minibatches = True, mbs = 100,flatten=True,shuffle=True,testData=None):
+
+        if flatten:
+            x_flattened = []
+            y_flattened = []
+            for x,y in zip(xVals,yVals):
+                x_flattened.append(x.flatten())
+                y_flattened.append(y.flatten())
+            xVals = np.array(x_flattened)
+            yVals = np.array(y_flattened)
+        
+        
         if shuffle:
-            zipped = list(zip(xVals, yVals))
+            zipped = [(x,y) for x,y in zip(xVals,yVals)]
             random.shuffle(zipped)
-            xVals, yVals = zip(*zipped)    
+            xVals = np.array([x for x,y in zipped])
+            yVals = np.array([y for x,y in zipped])
     
-        # batches_x = self.__batch_generator(xVals,mbs)
-        # batches_y = self.__batch_generator(yVals,mbs)
-        split_to_batches = lambda A, n=mbs: [A[i:i+n] for i in range(0, len(A), n)]
-        batches_x = split_to_batches(xVals)
-        batches_y = split_to_batches(yVals)
-        # print(len(list(batches_x)))
+        batches_x = np.array([x for x in self.__batch_generator(xVals,mbs)])
+        batches_y = np.array([y for y in self.__batch_generator(yVals,mbs)])
 
-        # swch = True
-
-        for epoch in range(epochs):
-            batch_ctr = 0
-            print("Epoch ",epoch+1)
+        print("\n")
+        loss = 0
+        for epoch in range(epochs + 1):
+            progress = 0
+            p_bar_1 = self.progress_bar(epoch,epochs,subdivisions=(20 if (epochs / 2 > 32) else int(epochs / 2)))
+            p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (mbs / 2 > 32) else int(mbs / 2)))
+            # print()
+            if (epoch == epochs):
+                progress = len(xVals)
+                p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (mbs / 2 > 32) else int(mbs / 2)))
+                # print("Epochs: ",p_bar_1," ",epoch,"/",epochs,"\nRecords Trained: ",p_bar_2," ",progress,"/",len(xVals),end="\r\n")
+                print("\033[FEpochs:          ",p_bar_1," ",epoch,"/",epochs,"\nRecords Trained: ",p_bar_2,progress,"/",len(xVals),end="",sep="",flush=True)
+                break
             for batch_x,batch_y in zip(batches_x,batches_y):
                 averaged_deltas = []
-                for x,y in zip(batch_x,batch_y):
-                    if flatten:
-                        x = x.flatten()
-                        y = y.flatten()
-                    layer1, layer2 = self.__forward(x)
-                    layers = [layer1,layer2]
-                    deltas = self.__back(x,layers,[self.W1,self.W2],y)
-                    if (len(averaged_deltas) == 0):
-                        averaged_deltas = np.array(deltas)
-                    else:
-                        averaged_deltas += np.array(deltas)
-                averaged_deltas /= mbs
-                self.W1 -= self.lr * averaged_deltas[1]
-                self.W2 -= self.lr * averaged_deltas[0].reshape((self.neuronsPerLayer,self.outputSize))
+
+                before_activation,after_activation = self.__forward(batch_x)
+                # deltas_weights = self.__back(batch_x,before_activation,after_activation,batch_y,mbs)
+                deltas_weights,deltas_biases = self.__back(batch_x,before_activation,after_activation,batch_y,mbs)
                 
-                batch_ctr+=1
-                printout = "batch "+str(batch_ctr)+"/"+str(len(batches_x))
-                print(printout, end='\r')
-            print()
-        # return
+                # print(np.array(deltas).shape)
+
+                for i in range(len(self.weights)):
+                    self.weights[i] -= self.lr * deltas_weights[i]
+                    # print(self.biases[i].shape,deltas_biases[i])
+                    self.biases[i] -= self.lr * deltas_biases[i]
+
+                progress += len(batch_x) 
+                p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (mbs / 2 > 32) else int(mbs / 2)))
+                loss = self.__mse(after_activation[-1],batch_y)
+                print("\033[FEpochs:          ",p_bar_1," ",epoch,"/",epochs," loss: ",loss,"\nRecords Trained: ",p_bar_2,progress,"/",len(xVals),end="",sep="",flush=True)
+
+        print()
+        return
+
     # Forward pass.
-    def __forward(self, input):
-        layer1 = self.__sigmoid(np.dot(input, self.W1))
-        layer2 = self.__sigmoid(np.dot(layer1, self.W2))
-        return layer1, layer2
-    
-    def __back(self,input,layers,weights,truths):
-        layers_deltas = [0 for i in range(self.nLayers)]
-        out_layer = layers[len(layers)-1]
-        output_layer_calc = True
+    def __forward(self, input,activation='sigmoid'):
+        if (activation == 'sigmoid'):
+            activation = self.__sigmoid
+        before_activation = []
+        after_activation = []
 
-        error_deltas = []
-        for pred,truth in zip(out_layer,truths):
-            error_deltas.append(self.__mse_derivative(truth,pred) * self.__sigmoid_derivative(pred,True))
-        error_delta = mean(error_deltas)
+        a = input
+        
+        for i in range(len(self.weights)):
+            weight = self.weights[i]
+            bias = self.biases[i]
 
-        for i,layer in reversed(tuple(enumerate(layers))):
-            deltas = []
-            if output_layer_calc:
-                for neuron in layers[i-1]:
-                    deltas.append(error_delta * neuron)
-                output_layer_calc = False
-                layers_deltas[i] = np.array(deltas)
+            # z = np.dot(a,weight)
+            z = np.dot(a,weight) + bias
+            a = activation(z)
+
+            before_activation.append(z)
+            after_activation.append(a)
+
+            # print(z.shape,a.shape)
+        
+        return before_activation,after_activation
+            
+    def __back(self,X,x_b,x_a,y,batchSize):
+        dLoss = 0
+        dA = 0
+        dZ = 0
+
+        deltas_weights = [0 for i in range(len(x_b))]
+        deltas_biases = [0 for i in range(len(x_b))]
+
+        x_a.insert(0,X)
+        x_b.insert(0,X)
+
+        # print(x_a)
+        for i in range(len(x_a) - 1,0,-1):
+            # print(len(self.weights))
+            a,a_prev,z = x_a[i],x_a[i-1],x_b[i]
+            weights = self.weights[i - 1]
+
+            if (i == len(x_a) - 1):
+                dLoss = self.__mse_derivative(y,a)
+                # print(dLoss)
+                dZ = np.multiply(dLoss,self.__sigmoid_derivative(a))
             else:
-                for j in range(len(layer)):
-                    weights_flattened = (weights[i+1]).flatten()
-                    derivative_respect_zhidden = error_delta * weights_flattened[j]
-                    hidden_derivative = derivative_respect_zhidden * self.__sigmoid_derivative(layer[j],sig_calc=True)
-                    prev_layer = input if (i-1 < 0) else layers[i-1]
-                    sub_deltas = []
-                    for k in range(len(layers[i-1])):
-                        sub_deltas.append(hidden_derivative * layers[i-1][k])
-                    deltas.append(np.array(sub_deltas))
-                layers_deltas[i] = np.transpose(deltas)
-        return layers_deltas
+                dZ = np.multiply(dA, self.__sigmoid_derivative(a))
+            
+            # print(dZ.shape)
+
+            dW = np.dot(a_prev.T,dZ)/batchSize
+            dB = np.sum(dZ, axis=0)/batchSize
+
+            dA = np.dot(dZ,weights.T)
+
+            # print(dB)
+
+            deltas_weights[i - 1] = dW
+            deltas_biases[i - 1] = dB
+        
+        # return deltas_weights
+        return deltas_weights,deltas_biases
+
+
 
     # Predict.
     def predict(self, xVals,flatten=True):
         if flatten:
             xVals = xVals.flatten()
-        _, layer2 = self.__forward(xVals)
-        return layer2
+        _,after_activation = self.__forward(xVals)
+        return after_activation[len(after_activation) - 1]
 
 
 
@@ -245,9 +319,8 @@ def trainModel(data):
         print("Building and training Custom_NN.")
         # xTrain = xTrain.flatten()
         # yTrain = yTrain.flatten()
-        custom_nn = NeuralNetwork_2Layer(784, 10, 512, learningRate = 0.01)
-        custom_nn.train(xTrain,yTrain,epochs=10,mbs=500)
-        print("Trained")                   #TODO: Write code to build and train your custon neural net.
+        custom_nn = NeuralNetwork_2Layer(784, 10, 32, learningRate = 0.1)
+        custom_nn.train(xTrain,yTrain,epochs=10,mbs=64)
         return custom_nn
     elif ALGORITHM == "tf_net":
         print("Building and training TF_NN.")
@@ -268,7 +341,6 @@ def runModel(data, model):
         return guesserClassifier(data)
     elif ALGORITHM == "custom_net":
         print("Testing Custom_NN.")
-        # print("Not yet implemented.")                   #TODO: Write code to run your custon neural net.
         preds = []
         for d in data:
             pred = binarize_output(model.predict(d))
@@ -283,6 +355,31 @@ def runModel(data, model):
         raise ValueError("Algorithm not recognized.")
 
 
+def myhash(x):
+    return hash(str(x))
+
+def generate_confusion_matrix(truth,preds):
+
+    confusion_matrix =[[0 for j in range(len(preds[0]))] for i in range(len(preds[0]))]
+    # print(confusion_matrix)
+
+    hashed_to_arr = dict(zip(np.array([myhash(arr) for arr in truth]),truth))
+    preds_plus_hash_list = list(zip(np.array([myhash(arr) for arr in truth]),preds))
+
+    preds_plus_hash_dict = {}
+
+    for k,v in preds_plus_hash_list:
+        if (k not in preds_plus_hash_dict.keys()):
+            preds_plus_hash_dict[k] = [v]
+        else:
+           preds_plus_hash_dict[k].append(v)
+
+    for key_hash in hashed_to_arr.keys():
+        confusion_matrix[np.argmax(hashed_to_arr[key_hash])] = np.sum(preds_plus_hash_dict[key_hash],axis=0,dtype=np.int32)
+
+    for row in confusion_matrix:
+        print(row)
+    return
 
 def evalResults(data, preds):   #TODO: Add F1 score confusion matrix here.
     xTest, yTest = data
@@ -292,6 +389,8 @@ def evalResults(data, preds):   #TODO: Add F1 score confusion matrix here.
     accuracy = acc / preds.shape[0]
     print("Classifier algorithm: %s" % ALGORITHM)
     print("Classifier accuracy: %f%%" % (accuracy * 100))
+
+    generate_confusion_matrix(preds,yTest)
     print()
 
 
