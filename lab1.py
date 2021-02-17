@@ -12,7 +12,7 @@ from statistics import mean
 # Setting random seeds to keep everything deterministic.
 random.seed(1618)
 np.random.seed(1618)
-#tf.set_random_seed(1618)   # Uncomment for TF1.
+# tf.set_random_seed(1618)   # Uncomment for TF1.
 tf.random.set_seed(1618)
 
 # Disable some troublesome logging.
@@ -26,7 +26,9 @@ IMAGE_SIZE = 784
 # Use these to set the algorithm to use.
 # ALGORITHM = "guesser"
 ALGORITHM = "custom_net"
-#ALGORITHM = "tf_net"
+# ALGORITHM = "custom_net_3layer"
+# ALGORITHM = "custom_net_nlayer"
+# ALGORITHM = "tf_net"
 
 
 
@@ -40,7 +42,6 @@ class NeuralNetwork_2Layer():
         # self.W1 = np.random.randn(self.inputSize, self.neuronsPerLayer)
         # self.W2 = np.random.randn(self.neuronsPerLayer, self.outputSize)
         self.NN = NeuralNetwork_NLayer(self.inputSize,self.outputSize,[self.neuronsPerLayer],self.lr)
-
 
 
     # Activation function.
@@ -168,13 +169,13 @@ class NeuralNetwork_NLayer():
         for epoch in range(epochs + 1):
             progress = 0
             p_bar_1 = self.progress_bar(epoch,epochs,subdivisions=(20 if (epochs / 2 > 32) else int(epochs / 2)))
-            p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (mbs / 2 > 32) else int(mbs / 2)))
+            p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (len(xVals) / 2 > 32) else len(xVals) / 2))
             # print()
             if (epoch == epochs):
                 progress = len(xVals)
-                p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (mbs / 2 > 32) else int(mbs / 2)))
+                p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (len(xVals) / 2 > 32) else len(xVals) / 2))
                 # print("Epochs: ",p_bar_1," ",epoch,"/",epochs,"\nRecords Trained: ",p_bar_2," ",progress,"/",len(xVals),end="\r\n")
-                print("\033[FEpochs:          ",p_bar_1," ",epoch,"/",epochs,"\nRecords Trained: ",p_bar_2,progress,"/",len(xVals),end="",sep="",flush=True)
+                print("\033[FEpochs:          ",p_bar_1," ",epoch,"/",epochs," loss: ",loss,"\nRecords Trained: ",p_bar_2,progress,"/",len(xVals),end="",sep="",flush=True)
                 break
             for batch_x,batch_y in zip(batches_x,batches_y):
                 averaged_deltas = []
@@ -191,7 +192,7 @@ class NeuralNetwork_NLayer():
                     self.biases[i] -= self.lr * deltas_biases[i]
 
                 progress += len(batch_x) 
-                p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (mbs / 2 > 32) else int(mbs / 2)))
+                p_bar_2 = self.progress_bar(progress,len(xVals),subdivisions=(20 if (len(xVals) / 2 > 32) else len(xVals) / 2))
                 loss = self.__mse(after_activation[-1],batch_y)
                 print("\033[FEpochs:          ",p_bar_1," ",epoch,"/",epochs," loss: ",loss,"\nRecords Trained: ",p_bar_2,progress,"/",len(xVals),end="",sep="",flush=True)
 
@@ -241,14 +242,16 @@ class NeuralNetwork_NLayer():
 
             if (i == len(x_a) - 1):
                 dLoss = self.__mse_derivative(y,a)
-                # print(dLoss)
+                # print("dLoss:",dLoss.shape)
                 dZ = np.multiply(dLoss,self.__sigmoid_derivative(a))
+                # print(dZ.shape)
             else:
                 dZ = np.multiply(dA, self.__sigmoid_derivative(a))
             
-            # print(dZ.shape)
+            # print("dZ",dZ.shape)
 
             dW = np.dot(a_prev.T,dZ)/batchSize
+            # print("dW",dW.shape)
             dB = np.sum(dZ, axis=0)/batchSize
 
             dA = np.dot(dZ,weights.T)
@@ -310,7 +313,7 @@ def preprocessData(raw):
 
 
 
-def trainModel(data):
+def trainModel(data,input_size=784,output_size=10,layers=[64],lr = 0.5,batch_size = 64, epochs = 10):
     xTrain, yTrain = data
 
     if ALGORITHM == "guesser":
@@ -319,13 +322,41 @@ def trainModel(data):
         print("Building and training Custom_NN.")
         # xTrain = xTrain.flatten()
         # yTrain = yTrain.flatten()
-        custom_nn = NeuralNetwork_2Layer(784, 10, 32, learningRate = 0.1)
-        custom_nn.train(xTrain,yTrain,epochs=10,mbs=64)
+        custom_nn = NeuralNetwork_2Layer(input_size, output_size, layers[0], learningRate = lr)
+        custom_nn.train(xTrain,yTrain,epochs=epochs,mbs=batch_size)
+        return custom_nn
+    elif ALGORITHM == "custom_net_3layer":
+        print("Building and training Custom_NN with 3 layers.")
+        # xTrain = xTrain.flatten()
+        # yTrain = yTrain.flatten()
+        custom_nn = NeuralNetwork_NLayer(input_size, output_size, layers, learningRate = lr)
+        custom_nn.train(xTrain,yTrain,epochs=epochs,mbs=batch_size)
+        return custom_nn
+    elif ALGORITHM == "custom_net_nlayer":
+        print("Building and training Custom_NN with n hidden layers.")
+        num_layers = int(input("How many hidden layers: "))
+        layers = []
+        for i in range(num_layers):
+            prompt = "How many neurons in layer #"+str(i+1)+": "
+            layers.append(int(input(prompt)))
+        # xTrain = xTrain.flatten()
+        # yTrain = yTrain.flatten()
+        custom_nn = NeuralNetwork_NLayer(input_size, output_size, layers, learningRate = lr)
+        custom_nn.train(xTrain,yTrain,epochs=epochs,mbs=batch_size)
         return custom_nn
     elif ALGORITHM == "tf_net":
         print("Building and training TF_NN.")
-        print("Not yet implemented.")                   #TODO: Write code to build and train your keras neural net.
-        return None
+        # print("Not yet implemented.")                   #TODO: Write code to build and train your keras neural net.
+        tf_nn = keras.Sequential()
+        tf_nn.add(keras.layers.Flatten(input_shape=(28, 28)))
+        tf_nn.add(keras.layers.Dense(256,activation='relu'))
+        # tf_nn.add(keras.layers.Dropout(0.4))
+        tf_nn.add(keras.layers.Dense(10,activation='softmax'))
+
+        tf_nn.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+        tf_nn.fit(xTrain,yTrain,batch_size=batch_size,epochs=epochs)
+
+        return tf_nn
     else:
         raise ValueError("Algorithm not recognized.")
 
@@ -339,7 +370,7 @@ def binarize_output(pred):
 def runModel(data, model):
     if ALGORITHM == "guesser":
         return guesserClassifier(data)
-    elif ALGORITHM == "custom_net":
+    elif ALGORITHM == "custom_net" or ("custom" in ALGORITHM):
         print("Testing Custom_NN.")
         preds = []
         for d in data:
@@ -349,8 +380,9 @@ def runModel(data, model):
         return np.array(preds)
     elif ALGORITHM == "tf_net":
         print("Testing TF_NN.")
-        print("Not yet implemented.")                   #TODO: Write code to run your keras neural net.
-        return None
+        # print("Not yet implemented.")                   #TODO: Write code to run your keras neural net.
+        preds = [binarize_output(d) for d in model.predict(data)]
+        return np.array(preds)
     else:
         raise ValueError("Algorithm not recognized.")
 
@@ -359,7 +391,6 @@ def myhash(x):
     return hash(str(x))
 
 def generate_confusion_matrix(truth,preds):
-
     confusion_matrix =[[0 for j in range(len(preds[0]))] for i in range(len(preds[0]))]
     # print(confusion_matrix)
 
@@ -398,13 +429,57 @@ def evalResults(data, preds):   #TODO: Add F1 score confusion matrix here.
 #=========================<Main>================================================
 
 def main():
-    raw = getRawData()
-    data = preprocessData(raw)
-    model = trainModel(data[0])
-    preds = runModel(data[1][0], model)
-    # print(preds[0])
-    # print(data[1][1][0])
-    evalResults(data[1], preds)
+    dataset_mode = "iris"
+    # dataset_mode = "mnist"
+
+    if (dataset_mode == "mnist"):
+        print("Performing Classification on MNIST Dataset")
+
+        raw = getRawData()
+        data = preprocessData(raw)
+        model = trainModel(data[0])
+        preds = runModel(data[1][0], model)
+        # print(preds[0])
+        # print(data[1][1][0])
+        evalResults(data[1], preds)
+    else:
+        #Iris Preprocessing code is from Reference #2
+        print("Performing Classification on Iris Dataset")
+
+        import pandas as pd
+        from sklearn.datasets import load_iris
+        from sklearn.model_selection import train_test_split
+        from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+        iris = load_iris()
+        X = iris['data']
+        y = iris['target']
+        names = iris['target_names']
+        feature_names = iris['feature_names']
+
+        # One hot encoding
+        enc = OneHotEncoder()
+        Y = enc.fit_transform(y[:, np.newaxis]).toarray()
+
+        # Scale data to have mean 0 and variance 1 
+        # which is importance for convergence of the neural network
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        # Split the data set into training and testing
+        X_train, X_test, Y_train, Y_test = train_test_split(
+            X_scaled, Y, test_size=0.5, random_state=2)
+
+        n_features = X.shape[1]
+        n_classes = Y.shape[1]
+
+        # print(n_features,n_classes)
+
+        model = trainModel((X_train,Y_train),input_size = n_features, output_size = n_classes, layers=[8],lr=0.1,epochs=100,batch_size=2)
+        preds = runModel(X_test, model)
+        # print(preds[0])
+        # print(data[1][1][0])
+        evalResults((X_test,Y_test), preds)
 
 
 
