@@ -4,6 +4,8 @@ import tensorflow as tf
 import random
 import sys
 import argparse
+import seaborn as sn
+import matplotlib.pyplot as plt
 
 from tensorflow import keras
 from tensorflow.keras.utils import to_categorical
@@ -83,6 +85,7 @@ class NeuralNetwork_NLayer():
         self.lr = learningRate
         self.weights = []
         self.biases = []
+
         for i,num in enumerate(hiddenLayerNeurons):
             if (i == 0):
                 self.weights.append(np.random.randn(self.inputSize, num) / sqrt(num))
@@ -395,7 +398,7 @@ def runModel(data, model):
 def myhash(x):
     return hash(str(x))
 
-def generate_confusion_matrix(truth,preds):
+def generate_confusion_matrix(truth,preds,plot=False):
     # confusion_matrix =[[0 for j in range(len(preds[0]))] for i in range(len(preds[0]))]
     # # print(confusion_matrix)
 
@@ -417,13 +420,19 @@ def generate_confusion_matrix(truth,preds):
     #     print(str(row))
     
     from sklearn import metrics
-    
-    print(metrics.confusion_matrix(truth.argmax(axis=1), preds.argmax(axis=1)))
+
+    confusion_matrix = metrics.confusion_matrix(truth.argmax(axis=1), preds.argmax(axis=1))
+
+    print(confusion_matrix)
     print(metrics.classification_report(truth.argmax(axis=1), preds.argmax(axis=1)))
 
+    if plot:
+        # metrics.plot_confusion_matrix(truth.argmax(axis=1), preds.argmax(axis=1))
+        sn.heatmap(confusion_matrix, annot=True)
+        plt.show()
     return
-
-def evalResults(data, preds):   #TODO: Add F1 score confusion matrix here.
+    
+def evalResults(data, preds, plot=False):   #TODO: Add F1 score confusion matrix here.
     xTest, yTest = data
     acc = 0
     for i in range(preds.shape[0]):
@@ -432,7 +441,7 @@ def evalResults(data, preds):   #TODO: Add F1 score confusion matrix here.
     print("Classifier algorithm: %s" % ALGORITHM)
     print("Classifier accuracy: %f%%" % (accuracy * 100))
 
-    generate_confusion_matrix(preds,yTest)
+    generate_confusion_matrix(preds,yTest,plot=plot)
     print()
 
 
@@ -464,6 +473,9 @@ def main():
     parser.add_argument('-m','--model', type=evaluate_model_arg,
                     help="Select one of the following:\n'guesser', 'custom_net', 'custom_net_3layer','custom_net_nlayer','tf_net'\n")
     
+    parser.add_argument('-p','--plot', type=bool,
+                    help="True or False. True for plotting heatmap of confusion matrix, and False if not.\n")
+    
     args = parser.parse_args()
 
     if not (any(vars(args).values())):
@@ -493,9 +505,9 @@ def main():
         preds = runModel(data[1][0], model)
         # print(preds[0])
         # print(data[1][1][0])
-        evalResults(data[1], preds)
+        evalResults(data[1], preds,plot=args.plot)
     else:
-        #Iris Preprocessing code is from Reference #2
+        #Iris Preprocessing code is from Reference #1
         print("Performing Classification on Iris Dataset")
 
         import pandas as pd
@@ -538,7 +550,7 @@ def main():
         preds = runModel(X_test, model)
         # print(preds[0])
         # print(data[1][1][0])
-        evalResults((X_test,Y_test), preds)
+        evalResults((X_test,Y_test), preds,plot=args.plot)
 
 
 
