@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 import random
 import sys
+import argparse
 
 from tensorflow import keras
 from tensorflow.keras.utils import to_categorical
@@ -25,11 +26,12 @@ IMAGE_SIZE = 784
 
 # Use these to set the algorithm to use.
 # ALGORITHM = "guesser"
-ALGORITHM = "custom_net"
+# ALGORITHM = "custom_net"
 # ALGORITHM = "custom_net_3layer"
 # ALGORITHM = "custom_net_nlayer"
 # ALGORITHM = "tf_net"
 
+ALGORITHM = ""
 
 
 
@@ -313,8 +315,10 @@ def preprocessData(raw):
 
 
 
-def trainModel(data,input_size=784,output_size=10,layers=[64],lr = 0.5,batch_size = 64, epochs = 10):
+def trainModel(data,input_size=784,output_size=10,layers=[64],lr = 0.5,batch_size = 64, epochs = 10,input_shape=(28,28)):
     xTrain, yTrain = data
+
+    # print(ALGORITHM)
 
     if ALGORITHM == "guesser":
         return None   # Guesser has no model, as it is just guessing.
@@ -348,10 +352,10 @@ def trainModel(data,input_size=784,output_size=10,layers=[64],lr = 0.5,batch_siz
         print("Building and training TF_NN.")
         # print("Not yet implemented.")                   #TODO: Write code to build and train your keras neural net.
         tf_nn = keras.Sequential()
-        tf_nn.add(keras.layers.Flatten(input_shape=(28, 28)))
-        tf_nn.add(keras.layers.Dense(256,activation='relu'))
+        tf_nn.add(keras.layers.Flatten(input_shape=input_shape))
+        tf_nn.add(keras.layers.Dense(layers[0],activation='relu'))
         # tf_nn.add(keras.layers.Dropout(0.4))
-        tf_nn.add(keras.layers.Dense(10,activation='softmax'))
+        tf_nn.add(keras.layers.Dense(output_size,activation='softmax'))
 
         tf_nn.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
         tf_nn.fit(xTrain,yTrain,batch_size=batch_size,epochs=epochs)
@@ -368,6 +372,7 @@ def binarize_output(pred):
     return floor_v(pred)
 
 def runModel(data, model):
+    # print(ALGORITHM)
     if ALGORITHM == "guesser":
         return guesserClassifier(data)
     elif ALGORITHM == "custom_net" or ("custom" in ALGORITHM):
@@ -391,25 +396,31 @@ def myhash(x):
     return hash(str(x))
 
 def generate_confusion_matrix(truth,preds):
-    confusion_matrix =[[0 for j in range(len(preds[0]))] for i in range(len(preds[0]))]
-    # print(confusion_matrix)
+    # confusion_matrix =[[0 for j in range(len(preds[0]))] for i in range(len(preds[0]))]
+    # # print(confusion_matrix)
 
-    hashed_to_arr = dict(zip(np.array([myhash(arr) for arr in truth]),truth))
-    preds_plus_hash_list = list(zip(np.array([myhash(arr) for arr in truth]),preds))
+    # hashed_to_arr = dict(zip(np.array([myhash(arr) for arr in truth]),truth))
+    # preds_plus_hash_list = list(zip(np.array([myhash(arr) for arr in truth]),preds))
 
-    preds_plus_hash_dict = {}
+    # preds_plus_hash_dict = {}
 
-    for k,v in preds_plus_hash_list:
-        if (k not in preds_plus_hash_dict.keys()):
-            preds_plus_hash_dict[k] = [v]
-        else:
-           preds_plus_hash_dict[k].append(v)
+    # for k,v in preds_plus_hash_list:
+    #     if (k not in preds_plus_hash_dict.keys()):
+    #         preds_plus_hash_dict[k] = [v]
+    #     else:
+    #        preds_plus_hash_dict[k].append(v)
 
-    for key_hash in hashed_to_arr.keys():
-        confusion_matrix[np.argmax(hashed_to_arr[key_hash])] = np.sum(preds_plus_hash_dict[key_hash],axis=0,dtype=np.int32)
+    # for key_hash in hashed_to_arr.keys():
+    #     confusion_matrix[np.argmax(hashed_to_arr[key_hash])] = np.sum(preds_plus_hash_dict[key_hash],axis=0,dtype=np.int32)
 
-    for row in confusion_matrix:
-        print(row)
+    # for row in confusion_matrix:
+    #     print(str(row))
+    
+    from sklearn import metrics
+    
+    print(metrics.confusion_matrix(truth.argmax(axis=1), preds.argmax(axis=1)))
+    print(metrics.classification_report(truth.argmax(axis=1), preds.argmax(axis=1)))
+
     return
 
 def evalResults(data, preds):   #TODO: Add F1 score confusion matrix here.
@@ -429,15 +440,56 @@ def evalResults(data, preds):   #TODO: Add F1 score confusion matrix here.
 #=========================<Main>================================================
 
 def main():
-    dataset_mode = "iris"
+
+    def evalute_dataset_arg(arg):
+        # print(arg)
+        if (arg != 'mnist' and arg != 'iris'):
+            raise argparse.ArgumentTypeError('The dataset specified is not supported.')
+        else:
+            return arg
+
+    def evaluate_model_arg(arg):
+        print(arg)
+        valid_args = ['guesser', 'custom_net', 'custom_net_3layer','custom_net_nlayer','tf_net']
+        exception_str = "Model does not exist: Please select one of the following:\n"+str(valid_args)
+        if (arg not in valid_args):
+            raise argparse.ArgumentTypeError(exception_str)
+        else:
+            return arg
+
+    parser = argparse.ArgumentParser(description='Options to run lab1')
+    parser.add_argument('-d','--dataset', type=evalute_dataset_arg,
+                    help='Select between mnist and iris datasets.')
+    
+    parser.add_argument('-m','--model', type=evaluate_model_arg,
+                    help="Select one of the following:\n'guesser', 'custom_net', 'custom_net_3layer','custom_net_nlayer','tf_net'\n")
+    
+    args = parser.parse_args()
+
+    if not (any(vars(args).values())):
+        parser.error('One or more of these arguments were not supplied: -d or --dataset and -m or --model. Please use --help for more information.')
+
+    # dataset_mode = "iris"
     # dataset_mode = "mnist"
+
+    dataset_mode = args.dataset
+    global ALGORITHM
+    ALGORITHM = args.model
+    # print(ALGORITHM)
 
     if (dataset_mode == "mnist"):
         print("Performing Classification on MNIST Dataset")
 
         raw = getRawData()
         data = preprocessData(raw)
-        model = trainModel(data[0])
+        layers = []
+        if (ALGORITHM == 'custom_net'):
+            layers = [64]
+        elif (ALGORITHM == 'custom_net_3layer'):
+            layers = [64, 32]
+        else:
+            layers = [256]
+        model = trainModel(data[0],layers=layers)
         preds = runModel(data[1][0], model)
         # print(preds[0])
         # print(data[1][1][0])
@@ -474,8 +526,15 @@ def main():
         n_classes = Y.shape[1]
 
         # print(n_features,n_classes)
+        
+        layers = []
 
-        model = trainModel((X_train,Y_train),input_size = n_features, output_size = n_classes, layers=[8],lr=0.1,epochs=100,batch_size=2)
+        if (ALGORITHM == 'custom_nn_3layer'):
+            layers = [8,4]
+        else:
+            layers = [8]
+    
+        model = trainModel((X_train,Y_train),input_size = n_features, output_size = n_classes, layers=layers,lr=0.1,epochs=100,batch_size=2,input_shape=(n_features,))
         preds = runModel(X_test, model)
         # print(preds[0])
         # print(data[1][1][0])
